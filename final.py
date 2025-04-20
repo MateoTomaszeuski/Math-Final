@@ -33,12 +33,9 @@ df = pd.read_csv(csv_path)
 print("Columns in dataset:", df.columns.tolist())
 
 # Data Cleaning & Encoding
-# Drop duplicates
 df.drop_duplicates(inplace=True)
-# Map target labels to integers
 label_map = {'Dropout': 0, 'Enrolled': 1, 'Graduate': 2}
 df['Target'] = df['Target'].map(label_map)
-# One-hot encode categorical features
 cat_cols = df.select_dtypes(include=['object']).columns.tolist()
 if 'Target' in cat_cols:
     cat_cols.remove('Target')
