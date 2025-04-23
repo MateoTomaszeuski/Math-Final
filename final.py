@@ -11,6 +11,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score, roc_curve
 
+# Our Question: Are factors like gender, age at enrollment,
+# parent occupation, financial aid, and grades 
+# related to student dropout rates?
+
+
 # Ensure Kaggle credentials are configured:
 # Place your kaggle.json in ~/.kaggle/kaggle.json with permissions 600.
 # Step By Step (MAC)
