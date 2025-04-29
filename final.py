@@ -3,18 +3,17 @@ import os
 from kaggle.api.kaggle_api_extended import KaggleApi
 import pandas as pd
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.decomposition import PCA
-from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score, roc_curve
+from statsmodels.discrete.discrete_model import Probit, Logit
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
 # Our Question: Are factors like gender, age at enrollment,
 # parent occupation, financial aid, and grades 
 # related to student dropout rates?
-
 
 # Ensure Kaggle credentials are configured:
 # Place your kaggle.json in ~/.kaggle/kaggle.json with permissions 600.
@@ -39,6 +38,7 @@ csv_filename = 'dataset.csv'
 csv_path = os.path.join(data_dir, csv_filename)
 df = pd.read_csv(csv_path)
 print("Columns in dataset:", df.columns.tolist())
+print(df.info())
 
 # %%
 # Data Cleaning & Encoding
@@ -64,13 +64,6 @@ X_test_scaled = scaler.transform(X_test)
 
 # %%
 # Exploratory Visualizations
-
-# Age at Enrollment Distribution
-# Purpose: To see how student ages are spread at the time they enroll.
-# What it shows:
-# The shape of the age distribution (e.g. bell‑shaped, skewed, multimodal)
-# Common age ranges (where the bars are tallest)
-# Any outliers or unusual age brackets (e.g. very young or older students)
 plt.figure()
 plt.hist(df['Age at enrollment'].dropna(), bins=20)
 plt.title('Age at Enrollment Distribution')
@@ -80,11 +73,6 @@ plt.show()
 
 # %%
 # Student Outcome Distribution
-
-# Purpose: To compare the raw counts of each outcome class—Dropout, Enrolled, Graduate.
-# What it shows:
-# Which outcome is most common in the dataset
-# Whether classes are balanced or skewed (e.g., far more Enrolled cases than Dropouts)
 plt.figure()
 outcomes = df['Target'].map({0:'Dropout',1:'Enrolled',2:'Graduate'})
 counts = outcomes.value_counts()
@@ -95,20 +83,94 @@ plt.ylabel('Count')
 plt.show()
 
 # %%
-# Correlation Heatmap
-
-# Purpose: To quantify the pairwise linear relationships between every pair of numeric features (and the encoded target).
-# What it shows:
-# Positive correlations (values close to +1) and negative correlations (values close to –1) via color intensity
-# Which features tend to move together (e.g. “Curricular units enrolled” vs. “credited”)
-plt.figure(figsize=(10,8))
-corr = df.select_dtypes(include=[np.number]).corr()
-plt.imshow(corr, aspect='auto')
-plt.colorbar()
-plt.xticks(range(len(corr)), corr.columns, rotation=90)
-plt.yticks(range(len(corr)), corr.columns)
-plt.title('Correlation Heatmap')
-plt.tight_layout()
+dropout = df[df['Target'] == 0]  
+plt.figure()
+plt.bar(dropout['Gender'].value_counts().index, dropout['Gender'].value_counts().values)
+plt.title('Gender Distribution Among Dropouts')
+plt.xlabel('Gender')
+plt.ylabel('Count')
+plt.xticks([0, 1],['Female', 'Male'])  # Not sure which is male and female, datased not clear.
 plt.show()
 
+# %%
+df['Weighted_Avg_Grade'] = (
+    (df['Curricular units 1st sem (grade)'] * df['Curricular units 1st sem (enrolled)']) +
+    (df['Curricular units 2nd sem (grade)'] * df['Curricular units 2nd sem (enrolled)'])
+) / (
+    df['Curricular units 1st sem (enrolled)'] + df['Curricular units 2nd sem (enrolled)']
+).dropna()
+
+plt.figure()
+sns.scatterplot(
+    x=(df['Curricular units 1st sem (enrolled)'] + df['Curricular units 2nd sem (enrolled)']),
+    y=df['Weighted_Avg_Grade'],
+    hue=outcomes
+)
+plt.title('Number of Enrolled Curricular Units vs Weighted Average Grade')
+plt.xlabel('Total Curricular Units Enrolled')
+plt.ylabel('Weighted Average Grade')
+plt.legend(title='Outcome')
+plt.show()
+
+# %%
+# Ordinary Least Squares (OLS) Model
+df['Total Credits'] = df['Curricular units 1st sem (enrolled)'] + df['Curricular units 2nd sem (enrolled)']
+df.dropna(subset=[
+    'Weighted_Avg_Grade', 
+    'Target'
+], inplace=True)
+
+X = df[['Age at enrollment',
+        'Weighted_Avg_Grade',
+        'Gender',
+        'Scholarship holder',
+        'Debtor',
+        'Tuition fees up to date'
+        ]]
+y = df['Target']
+
+X = sm.add_constant(X)
+
+ols_model = sm.OLS(y, X).fit()
+
+print(ols_model.summary())
+# %%
+# Probit and Logit Models
+
+# Convert dropout to a boolean (1 for Dropout, 0 otherwise)
+df['Dropout_Boolean'] = (df['Target'] == 0).astype(int)
+y = df['Dropout_Boolean']
+
+# Fit the Probit model
+probit_model = Probit(y, X).fit()
+print("Probit Model Summary:")
+print(probit_model.summary())
+print("Probit Model AIC:")
+print(probit_model.aic)
+#%%
+# Fit the Logit model
+logit_model = Logit(y, X).fit()
+print("Logit Model Summary:")
+print(logit_model.summary())
+print("Logit Model AIC:")
+print(logit_model.aic)
+
+# %%
+# Predict probabilities
+y_pred_prob = logit_model.predict(X)
+# Threshold at 0.5 to get predicted classes
+y_pred_class = (y_pred_prob >= 0.5).astype(int)
+
+# Create confusion matrix
+cm = confusion_matrix(y, y_pred_class)
+
+# Plot heatmap
+plt.figure(figsize=(6, 5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=['Not Dropout', 'Dropout'],
+            yticklabels=['Not Dropout', 'Dropout'])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix Heatmap')
+plt.show()
 # %%
