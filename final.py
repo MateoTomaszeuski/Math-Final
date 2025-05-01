@@ -1,3 +1,7 @@
+# MATH2080/3080 Final Project
+# Audrey Inglish, Logan Douglas, Mateo Tomaszeuski
+# 30 April 2025
+
 # %%
 import os
 from kaggle.api.kaggle_api_extended import KaggleApi
@@ -24,7 +28,7 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 # chmod 600 ~/.kaggle/kaggle.json
 
 # %%
-# Download and unzip dataset via Kaggle API
+# Download and unzip dataset from Kaggle API
 dataset = 'thedevastator/higher-education-predictors-of-student-retention'
 data_dir = 'data'
 os.makedirs(data_dir, exist_ok=True)
@@ -41,7 +45,7 @@ print("Columns in dataset:", df.columns.tolist())
 print(df.info())
 
 # %%
-# Data Cleaning & Encoding
+# Data cleaning, & general preprocessing
 df.drop_duplicates(inplace=True)
 label_map = {'Dropout': 0, 'Enrolled': 1, 'Graduate': 2}
 df['Target'] = df['Target'].map(label_map)
@@ -51,7 +55,7 @@ if 'Target' in cat_cols:
 df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
 
 # %%
-# Train/Test Split & Scaling
+# split data into training and testing sets
 X = df.drop('Target', axis=1)
 y = df['Target']
 X_train, X_test, y_train, y_test = train_test_split(
@@ -63,7 +67,7 @@ X_test_scaled = scaler.transform(X_test)
 
 
 # %%
-# Exploratory Visualizations
+# visualizations
 plt.figure()
 plt.hist(df['Age at enrollment'].dropna(), bins=20)
 plt.title('Age at Enrollment Distribution')
@@ -72,7 +76,7 @@ plt.ylabel('Count')
 plt.show()
 
 # %%
-# Student Outcome Distribution
+# student outcome distribution
 plt.figure()
 outcomes = df['Target'].map({0:'Dropout',1:'Enrolled',2:'Graduate'})
 counts = outcomes.value_counts()
@@ -83,6 +87,7 @@ plt.ylabel('Count')
 plt.show()
 
 # %%
+# gender distribution among dropouts
 dropout = df[df['Target'] == 0]  
 plt.figure()
 plt.bar(dropout['Gender'].value_counts().index, dropout['Gender'].value_counts().values)
@@ -93,6 +98,7 @@ plt.xticks([0, 1],['Female', 'Male'])  # Not sure which is male and female, data
 plt.show()
 
 # %%
+# enrolled credits vs average grade over two semesters, colored by outcome
 df['Weighted_Avg_Grade'] = (
     (df['Curricular units 1st sem (grade)'] * df['Curricular units 1st sem (enrolled)']) +
     (df['Curricular units 2nd sem (grade)'] * df['Curricular units 2nd sem (enrolled)'])
@@ -113,7 +119,7 @@ plt.legend(title='Outcome')
 plt.show()
 
 # %%
-# Ordinary Least Squares (OLS) Model
+# OLS model
 df['Total Credits'] = df['Curricular units 1st sem (enrolled)'] + df['Curricular units 2nd sem (enrolled)']
 df.dropna(subset=[
     'Weighted_Avg_Grade', 
@@ -141,14 +147,14 @@ print(ols_model.summary())
 df['Dropout_Boolean'] = (df['Target'] == 0).astype(int)
 y = df['Dropout_Boolean']
 
-# Fit the Probit model
+# probit model
 probit_model = Probit(y, X).fit()
 print("Probit Model Summary:")
 print(probit_model.summary())
 print("Probit Model AIC:")
 print(probit_model.aic)
 #%%
-# Fit the Logit model
+# logit model
 logit_model = Logit(y, X).fit()
 print("Logit Model Summary:")
 print(logit_model.summary())
@@ -164,7 +170,7 @@ y_pred_class = (y_pred_prob >= 0.5).astype(int)
 # Create confusion matrix
 cm = confusion_matrix(y, y_pred_class)
 
-# Plot heatmap
+# Plot heatmap for confusion matrix
 plt.figure(figsize=(6, 5))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
             xticklabels=['Not Dropout', 'Dropout'],
